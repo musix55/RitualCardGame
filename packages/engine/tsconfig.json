@@ -1,4 +1,5 @@
 {
+  // エンジン本体：アプリ（React Native）とサーバーで共有するため、Node.js や DOM の型を入れない
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -12,5 +13,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "test"]
+  "include": ["src"]
 }

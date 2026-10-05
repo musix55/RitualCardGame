@@ -1,0 +1,8 @@
+{
+  // テスト：Node.js 上の Vitest で動かすので Node.js の型を使える
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

@@ -126,6 +126,8 @@ export const RITUAL_DEFS: Record<RitualId, RitualDef> = {
   mimicry:          { name: '追従の儀',     category: 'opponent', description: '相手が直前のターンに使った枚数と同じ枚数のカードを使う' },
 };
 
+export const RITUAL_IDS = Object.keys(RITUAL_DEFS) as RitualId[];
+
 // -------------------------------------------------------------
 // ターンの記録
 // -------------------------------------------------------------
@@ -209,6 +211,8 @@ export type GameResult =
   | { readonly type: 'draw'; readonly reason: 'deckOut' | 'turnLimit' };
 
 export interface GameState {
+  /** この対戦のルール設定（対戦中は変えない） */
+  readonly config: GameConfig;
   readonly phase: GamePhase;
   readonly players: readonly [PlayerState, PlayerState];
   /** 山札。配列の先頭が一番上 */
@@ -261,6 +265,7 @@ export interface OpponentView {
  */
 export interface PlayerView {
   readonly me: PlayerId;
+  readonly config: GameConfig;
   readonly phase: GamePhase;
   readonly self: PlayerState;
   readonly opponent: OpponentView;
