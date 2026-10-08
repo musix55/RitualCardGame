@@ -2,10 +2,12 @@
   "name": "ritual-card-game",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
-    "test": "npm run test --workspaces",
-    "typecheck": "npm run typecheck --workspaces"
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "sim": "npm run sim -w @ritual/engine --"
   }
 }

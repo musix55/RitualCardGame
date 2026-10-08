@@ -350,7 +350,9 @@ function endTurn(d: Draft): void {
   const last = d.history.at(-1);
   const opponentPrev = last && last.player !== player ? last : null;
 
-  const met = me.ritual !== null && judgeRitual(me.ritual, { turn: d.currentTurn, opponentPrev });
+  const ownPrev = lastTurnOf(d, player);
+  const met =
+    me.ritual !== null && judgeRitual(me.ritual, { turn: d.currentTurn, opponentPrev, ownPrev }, d.config.ritualRules);
   const progressed = met && !me.sealed;
   if (progressed) me.progress += 1;
   // 封印は「次の自分のターン」1回分だけ効く

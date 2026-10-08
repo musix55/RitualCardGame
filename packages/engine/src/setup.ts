@@ -9,12 +9,12 @@ import type { RngHolder } from './rng';
 
 const RITUAL_CATEGORIES: readonly RitualCategory[] = ['element', 'action', 'opponent'];
 
-/** シャッフル前の山札60枚。id は「種類-属性-連番」 */
-export function createDeck(): Card[] {
+/** シャッフル前の山札。id は「種類-属性-連番」 */
+export function createDeck(composition: GameConfig['deckComposition'] = DECK_COMPOSITION): Card[] {
   const deck: Card[] = [];
-  for (const kind of Object.keys(DECK_COMPOSITION) as CardKind[]) {
+  for (const kind of Object.keys(composition) as CardKind[]) {
     for (const element of ELEMENTS) {
-      for (let i = 1; i <= DECK_COMPOSITION[kind][element]; i++) {
+      for (let i = 1; i <= composition[kind][element]; i++) {
         deck.push({ id: `${kind}-${element}-${i}`, kind, element });
       }
     }
@@ -40,7 +40,7 @@ function drawRitualCandidates(rng: RngHolder): RitualId[] {
  */
 export function createGame(seed: number, config: GameConfig = DEFAULT_CONFIG): GameState {
   const rng: RngHolder = { rngState: seed >>> 0 };
-  const deck = createDeck();
+  const deck = createDeck(config.deckComposition);
   shuffle(rng, deck);
 
   const newPlayer = (): PlayerState => ({

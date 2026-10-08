@@ -1,7 +1,9 @@
 // =============================================================
-// 魔法使いの儀式カードゲーム ルールエンジン 型定義（v0.2）
+// 魔法使いの儀式カードゲーム ルールエンジン 型定義（v0.3）
 // 仕様書 docs/ritual_card_game_spec.md に対応
 // =============================================================
+
+import type { RitualRules } from './rituals';
 
 // -------------------------------------------------------------
 // 基本
@@ -322,7 +324,30 @@ export interface GameConfig {
   readonly farsightCount: number;
   /** 透視で知る儀式の数 */
   readonly clairvoyanceCount: number;
+  /** 山札の構成 */
+  readonly deckComposition: Record<CardKind, Record<ManaElement, number>>;
+  /** 儀式ごとに使う調整案（rituals.ts の ALT_RULES）。画面の説明文は ritualDescription で取る */
+  readonly ritualRules: RitualRules;
 }
+
+/** 既定の設定が従う仕様書の版。対局の記録に残し、ルール変更の前後を区別する */
+export const RULES_VERSION = 'v0.3';
+
+/**
+ * v0.3 で採用した儀式の条件（CPU 同士の1万局の比較で決めた。仕様書 8章）。
+ * ここにない儀式は RITUAL_DEFS の条件のまま。
+ */
+export const V0_3_RITUAL_RULES: RitualRules = {
+  abyssalTide: 'alt1',
+  elementalHarmony: 'alt1',
+  twinStars: 'alt4',
+  serenePrayer: 'alt1',
+  stargazing: 'alt2',
+  offering: 'alt1',
+  malediction: 'alt1',
+  shadowStitch: 'alt2',
+  mimicry: 'alt1',
+};
 
 export const DEFAULT_CONFIG: GameConfig = {
   handSize: 5,
@@ -335,4 +360,6 @@ export const DEFAULT_CONFIG: GameConfig = {
   maxTurns: 40,
   farsightCount: 3,
   clairvoyanceCount: 2,
+  deckComposition: DECK_COMPOSITION,
+  ritualRules: V0_3_RITUAL_RULES,
 };
