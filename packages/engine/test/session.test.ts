@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCpu } from '../src/cpu/cpu';
 import { getLegalActions } from '../src/engine';
 import { replayLog } from '../src/log';
-import { humanAct, humanView, isCpuTurn, startSession, stepSessionCpu } from '../src/session';
+import { humanAct, humanView, isCpuTurn, restoreSession, startSession, stepSessionCpu } from '../src/session';
 import type { Session } from '../src/session';
 import type { PlayerId } from '../src/types';
 
@@ -54,5 +54,38 @@ describe('人間と CPU の1局', () => {
     const session = startSession({ seed: 1, human: 1, cpuLevel: 'easy', startedAt: STARTED_AT });
     expect(humanView(session).me).toBe(1);
     expect(humanView(session).opponent.ritual).toBeNull();
+  });
+
+  it('対局記録からセッションを復元できる', () => {
+    const session = playOut(3, 0);
+    const restored = restoreSession(session.log, session.human, session.cpuLevel);
+    expect(restored).toEqual(session);
+  });
+
+  it('途中で毎手復元してもCPUの行動と最終結果が変わらない', () => {
+    for (const cpuLevel of ['easy', 'normal', 'hard'] as const) {
+      for (const human of [0, 1] as const) {
+        let session = startSession({ seed: 7, human, cpuLevel, startedAt: STARTED_AT });
+        const cpu = createCpu(cpuLevel, 8);
+        for (let atMs = 0; session.state.phase !== 'finished'; atMs += 500) {
+          if (atMs > 1_000_000) throw new Error('終わりませんでした');
+          const restored = restoreSession(JSON.parse(JSON.stringify(session.log)), human, cpuLevel);
+          expect(restored).toEqual(session);
+          if (isCpuTurn(session)) {
+            const restoredCpu = createCpu(cpuLevel, cpu.rngState());
+            const next = stepSessionCpu(session, cpu, atMs);
+            expect(stepSessionCpu(restored, restoredCpu, atMs)).toEqual(next);
+            expect(restoredCpu.rngState()).toBe(cpu.rngState());
+            session = next.session;
+          } else {
+            const action = getLegalActions(session.state, human)[0]!;
+            const next = humanAct(session, action, atMs);
+            expect(humanAct(restored, action, atMs)).toEqual(next);
+            if (!next.ok) throw new Error(next.error);
+            session = next.session;
+          }
+        }
+      }
+    }
   });
 });

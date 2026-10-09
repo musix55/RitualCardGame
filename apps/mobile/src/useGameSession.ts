@@ -19,16 +19,31 @@ export interface GameSession {
   clearError(): void;
 }
 
-export function useGameSession(cpuLevel: CpuLevel): GameSession {
+interface Options {
+  readonly initialSession?: Session | null;
+  readonly initialCpuRngState?: number | null;
+  readonly onSessionChange?: (session: Session, cpuRngState: number) => void;
+}
+
+export function useGameSession(
+  cpuLevel: CpuLevel,
+  { initialSession = null, initialCpuRngState = null, onSessionChange }: Options = {},
+): GameSession {
   const [session, setSession] = useState<Session>(() => {
+    if (initialSession) return initialSession;
     const seed = Math.floor(Math.random() * 0x7fffffff);
     // 先攻・後攻はランダム（仕様書 4章）
     const human = Math.random() < 0.5 ? 0 : 1;
     return startSession({ seed, human, cpuLevel, startedAt: new Date().toISOString() });
   });
   const [error, setError] = useState<string | null>(null);
-  const startMs = useRef(Date.now());
-  const cpu = useRef(createCpu(cpuLevel, session.log.seed + 1));
+  const lastLoggedAtMs = session.log.actions.at(-1)?.atMs ?? 0;
+  const startMs = useRef(Date.now() - lastLoggedAtMs);
+  const cpu = useRef(createCpu(cpuLevel, initialCpuRngState ?? session.log.seed + 1));
+
+  useEffect(() => {
+    onSessionChange?.(session, cpu.current.rngState());
+  }, [onSessionChange, session]);
 
   const cpuThinking = isCpuTurn(session);
   useEffect(() => {

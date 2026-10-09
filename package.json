@@ -6,6 +6,10 @@
     "apps/*"
   ],
   "scripts": {
+    "start": "npm run start -w mobile",
+    "web": "npm run web -w mobile",
+    "android": "npm run android -w mobile",
+    "ios": "npm run ios -w mobile",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "sim": "npm run sim -w @ritual/engine --"

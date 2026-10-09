@@ -18,6 +18,8 @@ export function CardTile({ card, compact = false, selected = false, onPress }: P
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${elementName}・${def.name}`}
       onPress={onPress}
       disabled={!onPress}
       style={[styles.card, compact ? styles.compact : styles.full, { borderColor: color }, selected && styles.selected]}
@@ -26,7 +28,8 @@ export function CardTile({ card, compact = false, selected = false, onPress }: P
         <Text style={styles.element}>{elementName}</Text>
         <Text style={styles.category}>{CATEGORY_NAMES[def.category]}</Text>
       </View>
-      <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={1}>
+      <View style={styles.art}><Text style={[styles.sigil, {color}]}>{card.element === 'fire' ? '△' : card.element === 'water' ? '▽' : card.element === 'wind' ? '≋' : card.element === 'earth' ? '◇' : '？'}</Text></View>
+      <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={2}>
         {def.name}
       </Text>
       {!compact && <Text style={styles.description}>{def.description}</Text>}
@@ -41,9 +44,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     overflow: 'hidden',
   },
-  full: { width: 104, minHeight: 132 },
-  compact: { width: 72 },
-  selected: { transform: [{ translateY: -8 }], borderWidth: 3, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 6 },
+  full: { width: 92, height: 142 },
+  compact: { width: 72, height:96 },
+  selected: { transform: [{ translateY: -8 }], boxShadow: '0 0 10px #d5c78590' },
+  art: {height:32,alignItems:'center',justifyContent:'center',backgroundColor:'#f0f2ec'},
+  sigil: {fontSize:27,fontWeight:'bold'},
   band: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 6, paddingVertical: 2 },
   element: { color: '#fff', fontWeight: 'bold' },
   category: { color: '#fff', fontSize: 11 },

@@ -8,6 +8,7 @@ export interface DialogButton {
   readonly onPress: () => void;
   readonly primary?: boolean;
   readonly disabled?: boolean;
+  readonly battle?: boolean;
 }
 
 interface Props {
@@ -37,14 +38,15 @@ export function Dialog({ visible, title, children, buttons }: Props) {
   );
 }
 
-export function Button({ label, onPress, primary = false, disabled = false }: DialogButton) {
+export function Button({ label, onPress, primary = false, disabled = false, battle = false }: DialogButton) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={[styles.button, primary && styles.primary, disabled && styles.disabled]}
+      accessibilityRole="button"
+      style={[styles.button, primary && styles.primary, battle && styles.battle, battle && primary && styles.battlePrimary, disabled && styles.disabled]}
     >
-      <Text style={[styles.buttonText, primary && styles.primaryText]}>{label}</Text>
+      <Text style={[styles.buttonText, primary && styles.primaryText, battle && styles.battleText, battle && primary && styles.battlePrimaryText]}>{label}</Text>
     </Pressable>
   );
 }
@@ -61,4 +63,8 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.35 },
   buttonText: { fontSize: 15 },
   primaryText: { color: '#fff', fontWeight: 'bold' },
+  battle: { backgroundColor: '#243c35', borderColor: '#759084', minHeight: 44 },
+  battlePrimary: { backgroundColor: '#d4bd75', borderColor: '#ead89a' },
+  battleText: { color: '#e5ecdf', fontWeight: 'bold' },
+  battlePrimaryText: { color: '#213a31' },
 });

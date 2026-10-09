@@ -2,3 +2,6 @@ node_modules/
 dist/
 coverage/
 .expo/
+docs/対戦画面イメージ.png
+docs/ritual_card_game_spec.md
+docs/offline_mobile_release_plan.md

@@ -33,6 +33,7 @@ export const CPU_PARAMS: Record<CpuLevel, CpuParams> = {
 
 export interface Cpu {
   decide(view: PlayerView, legal: readonly Action[]): Action;
+  rngState(): number;
 }
 
 /** 儀式の条件を満たしたときの評価点。カードの効果よりも優先する */
@@ -213,5 +214,5 @@ export function createCpu(level: CpuLevel = 'normal', seed = 0, params: CpuParam
     return legal.find((a) => a.type === 'arrangeDeckTop' && a.orderedCardIds.join() === order.join()) ?? pick(legal);
   }
 
-  return { decide };
+  return { decide, rngState: () => rng.rngState };
 }

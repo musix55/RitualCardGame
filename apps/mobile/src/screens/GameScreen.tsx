@@ -1,24 +1,57 @@
 // 対戦画面（試作）。見た目は簡素にし、ルールどおりに遊べることを優先する
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { CARD_DEFS, ELEMENT_NAMES, RITUAL_DEFS, RITUAL_IDS, ritualDescription } from '@ritual/engine';
-import type { Card, CpuLevel, PendingChoice, PlayerView, RitualId, TurnRecordView } from '@ritual/engine';
+import {
+  CARD_DEFS,
+  ELEMENT_NAMES,
+  RITUAL_DEFS,
+  RITUAL_IDS,
+  opponentRitualStatuses,
+  ownRitualMetNow,
+  ritualDescription,
+} from '@ritual/engine';
+import type { Card, CpuLevel, PendingChoice, PlayerView, RitualId, TurnRecordView, VisibleCard } from '@ritual/engine';
+import type { Session } from '@ritual/engine';
 import { CardTile } from '../components/CardTile';
+import { BattleBoard } from '../components/BattleBoard';
+import { DeductionMemo, excludedMarks } from '../components/DeductionMemo';
+import type { RitualMark } from '../components/DeductionMemo';
 import { Button, Dialog } from '../components/Dialog';
 import { RitualList } from '../components/RitualList';
+import { RulesReference } from '../components/RulesReference';
+import { TutorialDialog } from '../components/TutorialDialog';
 import { exportLog } from '../exportLog';
-import { eventLabel, resultLabel, who } from '../labels';
+import { CATEGORY_NAMES, cardLabel, eventLabel, resultLabel, who } from '../labels';
 import { useGameSession } from '../useGameSession';
+import { DEFAULT_GAME_NOTES } from '../savedSession';
+import type { GameNotes } from '../savedSession';
 
 interface Props {
   readonly cpuLevel: CpuLevel;
+  readonly initialSession?: Session | null;
+  readonly initialCpuRngState?: number | null;
+  readonly initialNotes?: GameNotes;
+  readonly onSessionChange?: (session: Session, cpuRngState: number, notes: GameNotes) => void;
   readonly onExit: () => void;
   readonly onRestart: () => void;
 }
 
-export function GameScreen({ cpuLevel, onExit, onRestart }: Props) {
-  const game = useGameSession(cpuLevel);
+export function GameScreen({
+  cpuLevel,
+  initialSession = null,
+  initialCpuRngState = null,
+  initialNotes = DEFAULT_GAME_NOTES,
+  onSessionChange,
+  onExit,
+  onRestart,
+}: Props) {
+  const [deductionAuto, setDeductionAuto] = useState(initialNotes.deductionAuto);
+  const [ritualMarks, setRitualMarks] = useState<Map<RitualId, RitualMark>>(() => new Map(initialNotes.ritualMarks));
+  const persistSession = useCallback((session: Session, cpuRngState: number) => {
+    onSessionChange?.(session, cpuRngState, { deductionAuto, ritualMarks: [...ritualMarks] });
+  }, [onSessionChange, deductionAuto, ritualMarks]);
+  const game = useGameSession(cpuLevel, { initialSession, initialCpuRngState, onSessionChange: persistSession });
   const { view, legal, act, session } = game;
   const me = view.me;
   const myTurn = view.phase === 'playing' && view.currentPlayer === me && !game.cpuThinking;
@@ -30,6 +63,12 @@ export function GameScreen({ cpuLevel, onExit, onRestart }: Props) {
   const [unveilTarget, setUnveilTarget] = useState<RitualId | null>(null);
   const [unveilConfirm, setUnveilConfirm] = useState(false);
   const [candidate, setCandidate] = useState<RitualId | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [cardDetail, setCardDetail] = useState<VisibleCard | null>(null);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [memoOpen, setMemoOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const resetHand = () => {
     setSelected(null);
@@ -69,121 +108,37 @@ export function GameScreen({ cpuLevel, onExit, onRestart }: Props) {
   const selectedCard = view.self.hand.find((c) => c.id === selected) ?? null;
   const maxCards = view.turnNumber === 1 ? view.config.firstTurnMaxCards : view.config.maxCardsPerTurn;
   const cpuRitual = session.state.players[me === 0 ? 1 : 0].ritual;
+  const deductionStatuses = opponentRitualStatuses(view);
+  const unveilMarks = excludedMarks(deductionStatuses, deductionAuto);
+  const ownRitualMet = ownRitualMetNow(view);
 
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* 相手 */}
-        <View style={styles.panel}>
-          <View style={styles.row}>
-            <Text style={styles.panelTitle}>相手（CPU・{LEVEL_NAMES[cpuLevel]}）</Text>
-            <Text style={styles.small}>{me === 0 ? '後攻' : '先攻'}</Text>
-          </View>
-          <Progress value={view.opponent.progress} goal={view.config.goalProgress} />
-          <Text style={styles.small}>
-            儀式：{view.opponent.ritual ? `${RITUAL_DEFS[view.opponent.ritual].name}（看破で公開）` : '？？？'}
-          </Text>
-          <Badges
-            items={[
-              `手札 ${view.opponent.handCount}枚`,
-              view.opponent.hasBarrier && '結界あり',
-              view.opponent.sealed && '封印中',
-              view.opponent.unveilUsed && '看破使用済み',
-            ]}
-          />
-        </View>
-
-        {/* 状況 */}
-        <View style={styles.status}>
-          <Text style={styles.statusText}>
-            ターン {view.turnNumber} / {view.config.maxTurns}　山札 {view.deckCount}枚
-          </Text>
-          <Text style={[styles.turnText, myTurn && styles.myTurnText]}>
-            {view.phase === 'ritualSelection'
-              ? '儀式の選択中'
-              : view.phase === 'finished'
-                ? '対戦終了'
-                : myTurn
-                  ? `あなたのターン（あと${Math.max(0, maxCards - view.currentTurn.usedCards.length)}枚使える）`
-                  : '相手のターン…'}
-          </Text>
-          <View style={styles.cards}>
-            {view.currentTurn.usedCards.map((c) => (
-              <CardTile key={c.id} card={c} compact />
-            ))}
-            {view.currentTurn.usedCards.length === 0 && <Text style={styles.small}>このターンに使ったカードはまだありません</Text>}
-          </View>
-          {view.currentTurn.events.map((e, i) => (
-            <Text key={i} style={styles.event}>
-              ・{eventLabel(e, me)}
-            </Text>
-          ))}
-        </View>
-
-        {/* 自分 */}
-        <View style={styles.panel}>
-          <View style={styles.row}>
-            <Text style={styles.panelTitle}>あなた</Text>
-            <Text style={styles.small}>{me === 0 ? '先攻' : '後攻'}</Text>
-          </View>
-          <Progress value={view.self.progress} goal={view.config.goalProgress} />
-          {view.self.ritual && (
-            <Text style={styles.small}>
-              儀式：<Text style={styles.bold}>{RITUAL_DEFS[view.self.ritual].name}</Text>
-              {ritualDescription(view.self.ritual, view.config.ritualRules)}
-              {view.self.ritualRevealed && '（相手に公開済み）'}
-            </Text>
-          )}
-          <Badges
-            items={[
-              view.self.barrier && `結界を設置中（${ELEMENT_NAMES[view.self.barrier.element]}）`,
-              view.self.sealed && '封印中：このターンは進行度が上がらない',
-              view.self.unveilUsed && '看破使用済み',
-            ]}
-          />
-        </View>
-
-        {/* 手札 */}
-        <Text style={styles.sectionTitle}>
-          {transmuteId ? '錬成で捨てるカードを選んでください' : `手札（${view.self.hand.length}枚）`}
-        </Text>
-        <View style={styles.hand}>
-          {view.self.hand.map((c) => (
-            <CardTile
-              key={c.id}
-              card={c}
-              selected={c.id === selected || c.id === transmuteId}
-              onPress={myTurn ? () => onCardPress(c) : undefined}
-            />
-          ))}
-        </View>
-
-        {game.error && <Text style={styles.error}>{game.error}</Text>}
-
-        <View style={styles.actions}>
-          {transmuteId ? (
-            <Button label="錬成をやめる" onPress={resetHand} />
-          ) : (
-            selectedCard && <Button label={`${CARD_DEFS[selectedCard.kind].name}を使う`} primary onPress={playSelected} />
-          )}
-          <Button
-            label="ターン終了"
-            onPress={() => {
-              resetHand();
-              act({ type: 'endTurn', player: me });
-            }}
-            disabled={!myTurn}
-          />
-          <Button label="看破" onPress={() => setUnveilOpen(true)} disabled={!myTurn || !canUnveil} />
-        </View>
-
-        {/* 行動ログ */}
-        <Text style={styles.sectionTitle}>行動ログ（新しい順）</Text>
-        {[...view.history].reverse().map((t) => (
-          <TurnLog key={t.turnNumber} turn={t} view={view} />
-        ))}
+      <BattleBoard
+        view={view} myTurn={myTurn} selected={selected} transmuteId={transmuteId}
+        ritualMet={ownRitualMet} candidates={RITUAL_IDS.length - unveilMarks.size}
+        error={game.error} onCardPress={onCardPress} onDetail={setCardDetail}
+        onMemo={() => setMemoOpen(true)} onLog={() => setLogOpen(true)} onMenu={() => setMenuOpen(true)}
+        actions={<>
+          {transmuteId ? <Button battle label="錬成をやめる" onPress={resetHand} /> :
+            <Button battle label="使う" primary disabled={!myTurn || !selectedCard} onPress={playSelected} />}
+          <Button battle label="ターン終了" disabled={!myTurn || !!view.pendingChoice} onPress={() => { resetHand(); act({ type: 'endTurn', player: me }); }} />
+          <Button battle label="看破" disabled={!myTurn || !canUnveil} onPress={() => setUnveilOpen(true)} />
+        </>}
+      />
+      <Dialog visible={memoOpen} title="推理メモ" buttons={[{ label: '閉じる', onPress: () => setMemoOpen(false) }]}>
+        <DeductionMemo statuses={deductionStatuses} rules={view.config.ritualRules} auto={deductionAuto}
+          onAutoChange={setDeductionAuto} marks={ritualMarks} onMarksChange={setRitualMarks} />
+      </Dialog>
+      <Dialog visible={logOpen} title="行動ログ" buttons={[{ label: '閉じる', onPress: () => setLogOpen(false) }]}>
+        {[...view.history].reverse().map(t => <TurnLog key={t.turnNumber} turn={t} view={view} onCardPress={setCardDetail} />)}
         {view.history.length === 0 && <Text style={styles.small}>まだありません</Text>}
-      </ScrollView>
+      </Dialog>
+      <Dialog visible={menuOpen} title="対戦メニュー" buttons={[{ label: '閉じる', onPress: () => setMenuOpen(false) }]}>
+        <Button label="儀式一覧" onPress={() => { setMenuOpen(false); setRulesOpen(true); }} />
+        <Button label="遊び方" onPress={() => { setMenuOpen(false); setTutorialOpen(true); }} />
+        <Button label="中断してタイトルへ" onPress={onExit} />
+      </Dialog>
 
       {/* 儀式の選択 */}
       <Dialog
@@ -236,8 +191,7 @@ export function GameScreen({ cpuLevel, onExit, onRestart }: Props) {
           rules={view.config.ritualRules}
           selected={unveilTarget}
           onSelect={setUnveilTarget}
-          marked={view.self.excludedRituals}
-          markLabel="透視で除外"
+          marks={unveilMarks}
         />
       </Dialog>
       <Dialog
@@ -281,6 +235,22 @@ export function GameScreen({ cpuLevel, onExit, onRestart }: Props) {
           </Text>
         </Dialog>
       )}
+
+      <RulesReference visible={rulesOpen} config={view.config} onClose={() => setRulesOpen(false)} />
+      <TutorialDialog visible={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+
+      <Dialog
+        visible={cardDetail !== null}
+        title={cardDetail ? cardLabel(cardDetail) : 'カード'}
+        buttons={[{ label: '閉じる', primary: true, onPress: () => setCardDetail(null) }]}
+      >
+        {cardDetail && (
+          <View style={styles.cardDetail}>
+            <Text style={styles.small}>分類：{CATEGORY_NAMES[CARD_DEFS[cardDetail.kind].category]}</Text>
+            <Text>{CARD_DEFS[cardDetail.kind].description}</Text>
+          </View>
+        )}
+      </Dialog>
     </View>
   );
 }
@@ -317,7 +287,15 @@ function Badges({ items }: { readonly items: readonly (string | false | null)[] 
   );
 }
 
-function TurnLog({ turn, view }: { readonly turn: TurnRecordView; readonly view: PlayerView }) {
+function TurnLog({
+  turn,
+  view,
+  onCardPress,
+}: {
+  readonly turn: TurnRecordView;
+  readonly view: PlayerView;
+  readonly onCardPress: (card: VisibleCard) => void;
+}) {
   return (
     <View style={styles.log}>
       <Text style={styles.bold}>
@@ -327,7 +305,7 @@ function TurnLog({ turn, view }: { readonly turn: TurnRecordView; readonly view:
       </Text>
       <View style={styles.cards}>
         {turn.usedCards.map((c) => (
-          <CardTile key={c.id} card={c} compact />
+          <CardTile key={c.id} card={c} compact onPress={() => onCardPress(c)} />
         ))}
         {turn.usedCards.length === 0 && !turn.unveiled && <Text style={styles.small}>カードを使わなかった</Text>}
       </View>
@@ -371,7 +349,7 @@ function FarsightDialog({ choice, onDone }: { readonly choice: PendingChoice; re
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f6f5fb' },
+  root: { flex: 1, backgroundColor: '#0e1917' },
   container: { padding: 12, gap: 10, maxWidth: 720, width: '100%', alignSelf: 'center' },
   panel: { backgroundColor: '#fff', borderRadius: 10, padding: 10, gap: 4 },
   panelTitle: { fontWeight: 'bold', fontSize: 16 },
@@ -393,6 +371,10 @@ const styles = StyleSheet.create({
   pipOn: { backgroundColor: '#4a3aa8' },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   badge: { fontSize: 12, backgroundColor: '#f0e6d8', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  ritualNow: { fontSize: 13, fontWeight: 'bold', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6 },
+  ritualNowMet: { color: '#245b35', backgroundColor: '#dff2e5' },
+  ritualNowMiss: { color: '#8a3b15', backgroundColor: '#f7e5d7' },
   log: { backgroundColor: '#fff', borderRadius: 8, padding: 8, gap: 4 },
   farsightRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardDetail: { gap: 6 },
 });

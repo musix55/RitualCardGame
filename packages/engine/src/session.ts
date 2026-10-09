@@ -6,7 +6,7 @@
 // =============================================================
 
 import { applyAction } from './engine';
-import { appendToLog, createGameLog } from './log';
+import { appendToLog, createGameLog, replayLog } from './log';
 import type { GameLog } from './log';
 import { nextActor, stepCpu } from './match';
 import { createGame } from './setup';
@@ -46,6 +46,11 @@ export function startSession({ seed, human, cpuLevel, startedAt, config = DEFAUL
     human,
     cpuLevel,
   };
+}
+
+/** 保存した対局記録から、現在の対戦状態を復元する */
+export function restoreSession(log: GameLog, human: PlayerId, cpuLevel: CpuLevel): Session {
+  return { state: replayLog(log), log, human, cpuLevel };
 }
 
 /** 人間に見える情報 */

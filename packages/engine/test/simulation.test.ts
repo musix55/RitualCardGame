@@ -15,7 +15,10 @@ const DECK_SIZE = 60;
 
 function randomCpu(seed: number): Cpu {
   const rng = { rngState: seed >>> 0 };
-  return { decide: (_view, legal) => legal[randomInt(rng, legal.length)]! };
+  return {
+    decide: (_view, legal) => legal[randomInt(rng, legal.length)]!,
+    rngState: () => rng.rngState,
+  };
 }
 
 /** どの時点でも成り立つべき性質 */
